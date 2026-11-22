@@ -3,8 +3,10 @@ import express from "express"
 
 import { connectDB, disconnectDB, isDBConnected } from "./config/db.js"
 import { env, getMissingEnvKeys } from "./config/env.js"
+import adminRoutes from "./routes/admin.routes.js"
 import applicationRoutes from "./routes/application.routes.js"
 import authRoutes from "./routes/auth.routes.js"
+import paymentRoutes from "./routes/payment.routes.js"
 import tuitionRoutes from "./routes/tuition.routes.js"
 import userRoutes from "./routes/user.routes.js"
 
@@ -12,7 +14,15 @@ const app = express()
 
 app.disable("x-powered-by")
 app.use(cors({ origin: env.clientUrl, credentials: true }))
-app.use(express.json({ limit: "1mb" }))
+app.use(
+  express.json({
+    limit: "1mb",
+    // Stripe webhooks need the exact bytes used to calculate the signature.
+    verify: (req, _res, buffer) => {
+      req.rawBody = Buffer.from(buffer)
+    },
+  })
+)
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({
@@ -27,6 +37,8 @@ app.use("/api/auth", authRoutes)
 app.use("/api/users", userRoutes)
 app.use("/api/tuitions", tuitionRoutes)
 app.use("/api/applications", applicationRoutes)
+app.use("/api/admin", adminRoutes)
+app.use("/api/payments", paymentRoutes)
 
 app.use((_req, res) => {
   res.status(404).json({ message: "Route not found" })
