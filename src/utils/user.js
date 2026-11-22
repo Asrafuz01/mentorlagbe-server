@@ -1,10 +1,22 @@
 import { ObjectId } from "mongodb"
 
 const ROLES = new Set(["student", "tutor", "admin"])
+const PLANS = new Set(["free", "pro", "student-pro", "tutor-pro"])
+const PRO_PLANS = new Set(["pro", "student-pro", "tutor-pro"])
 
 export function normalizeRole(value) {
   const role = typeof value === "string" ? value.trim().toLowerCase() : ""
   return ROLES.has(role) ? role : "student"
+}
+
+export function normalizePlan(value) {
+  const plan = typeof value === "string" ? value.trim().toLowerCase() : ""
+  return PLANS.has(plan) ? plan : "free"
+}
+
+export function isProPlan(value) {
+  const plan = typeof value === "string" ? value.trim().toLowerCase() : ""
+  return PRO_PLANS.has(plan)
 }
 
 /** Keeps the user shape sent to the Next.js client free of internal fields. */
@@ -15,7 +27,7 @@ export function toPublicUser(user) {
     name: user.name || "",
     email: user.email || "",
     role: normalizeRole(user.role),
-    plan: user.plan || "free",
+    plan: normalizePlan(user.plan),
     image: user.image || null,
     phone: user.phone || "",
     bio: user.bio || "",

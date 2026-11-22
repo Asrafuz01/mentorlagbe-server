@@ -3,7 +3,12 @@ import { Router } from "express"
 import { getUsersCollection, isDBConnected } from "../config/db.js"
 import { env } from "../config/env.js"
 import { signJwtToken } from "../middlewares/auth.middleware.js"
-import { normalizeRole, toPublicUser } from "../utils/user.js"
+import {
+  isProPlan,
+  normalizePlan,
+  normalizeRole,
+  toPublicUser,
+} from "../utils/user.js"
 
 const router = Router()
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -20,7 +25,7 @@ router.post("/jwt", async (req, res, next) => {
       return res.status(503).json({ message: "Database is unavailable. Try again shortly." })
     }
 
-    const { email, name, role, image } = req.body || {}
+    const { email, name, role, plan, image } = req.body || {}
     const normalizedEmail =
       typeof email === "string" ? email.trim().toLowerCase() : ""
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
@@ -29,6 +34,8 @@ router.post("/jwt", async (req, res, next) => {
 
     const providedName = typeof name === "string" ? name.trim() : ""
     const providedImage = typeof image === "string" ? image.trim() : ""
+    const incomingRole = typeof role === "string" && role.trim() ? normalizeRole(role) : null
+    const incomingPlan = typeof plan === "string" && plan.trim() ? normalizePlan(plan) : null
     const now = new Date().toISOString()
     const users = getUsersCollection()
 
@@ -37,24 +44,31 @@ router.post("/jwt", async (req, res, next) => {
       const result = await users.insertOne({
         email: normalizedEmail,
         name: providedName || normalizedEmail.split("@")[0],
-        role: normalizeRole(role),
-        plan: "free",
+        role: incomingRole || "student",
+        plan: incomingPlan || "free",
         ...(providedImage ? { image: providedImage } : {}),
         createdAt: now,
         updatedAt: now,
       })
       user = await users.findOne({ _id: result.insertedId })
-    } else if (providedName || providedImage) {
-      await users.updateOne(
-        { _id: user._id },
-        {
-          $set: {
-            ...(providedName ? { name: providedName } : {}),
-            ...(providedImage ? { image: providedImage } : {}),
-            updatedAt: now,
-          },
-        }
-      )
+    } else {
+      // Never downgrade a seeded admin or an already-activated Pro account.
+      const nextRole =
+        user.role === "admin" || !incomingRole
+          ? normalizeRole(user.role)
+          : incomingRole
+      const nextPlan =
+        isProPlan(user.plan) || !incomingPlan
+          ? normalizePlan(user.plan)
+          : incomingPlan
+
+      const update = { updatedAt: now }
+      if (providedName) update.name = providedName
+      if (providedImage) update.image = providedImage
+      if (nextRole !== user.role) update.role = nextRole
+      if (nextPlan !== user.plan) update.plan = nextPlan
+
+      await users.updateOne({ _id: user._id }, { $set: update })
       user = await users.findOne({ _id: user._id })
     }
 
@@ -67,7 +81,7 @@ router.post("/jwt", async (req, res, next) => {
       email: user.email,
       name: user.name || "",
       role: normalizeRole(user.role),
-      plan: user.plan || "free",
+      plan: normalizePlan(user.plan),
     })
 
     return res.status(200).json({ token, user: toPublicUser(user) })
