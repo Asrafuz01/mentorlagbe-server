@@ -3,7 +3,9 @@ import express from "express"
 
 import { connectDB, disconnectDB, isDBConnected } from "./config/db.js"
 import { env, getMissingEnvKeys } from "./config/env.js"
+import applicationRoutes from "./routes/application.routes.js"
 import authRoutes from "./routes/auth.routes.js"
+import tuitionRoutes from "./routes/tuition.routes.js"
 import userRoutes from "./routes/user.routes.js"
 
 const app = express()
@@ -23,6 +25,8 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes)
 app.use("/api/users", userRoutes)
+app.use("/api/tuitions", tuitionRoutes)
+app.use("/api/applications", applicationRoutes)
 
 app.use((_req, res) => {
   res.status(404).json({ message: "Route not found" })
