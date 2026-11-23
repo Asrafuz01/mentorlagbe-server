@@ -243,25 +243,35 @@ async function fulfillPaidSession(session, fallback = {}) {
   )
 
   if (identity.userEmail) {
-    await users.updateOne(
+    const existingUser = await users.findOne(
       { email: identity.userEmail },
-      {
-        $set: {
-          plan: identity.plan,
-          proPlan: identity.plan,
-          updatedAt: now.toISOString(),
-        },
-        $setOnInsert: {
-          name: identity.userName || identity.userEmail.split("@")[0],
-          role:
-            normalizeRole(identity.userRole) === "admin"
-              ? "student"
-              : normalizeRole(identity.userRole) || "student",
-          createdAt: now.toISOString(),
-        },
-      },
-      { upsert: true }
+      { projection: { role: 1 } }
     )
+    const expectedRole = identity.plan === "tutor-pro" ? "tutor" : "student"
+    const existingRole = normalizeRole(existingUser?.role)
+
+    if (!existingUser || existingRole === expectedRole) {
+      await users.updateOne(
+        { email: identity.userEmail },
+        {
+          $set: {
+            plan: identity.plan,
+            proPlan: identity.plan,
+            updatedAt: now.toISOString(),
+          },
+          $setOnInsert: {
+            name: identity.userName || identity.userEmail.split("@")[0],
+            role: expectedRole,
+            createdAt: now.toISOString(),
+          },
+        },
+        { upsert: true }
+      )
+    } else {
+      console.warn(
+        `[payments] Skipping plan activation for ${identity.userEmail}: role mismatch`
+      )
+    }
   }
 
   return payments.findOne({ stripeSessionId: identity.stripeSessionId })
@@ -288,6 +298,11 @@ router.post("/create-checkout-session", verifyToken, async (req, res, next) => {
     }
 
     const role = plan === "tutor-pro" ? "tutor" : "student"
+    if (req.user.role !== role) {
+      return res.status(403).json({
+        message: `This plan is only available to ${role} accounts.`,
+      })
+    }
     const pricing = await buildCheckoutItems(plan, requestedMode)
     const identity = {
       plan,

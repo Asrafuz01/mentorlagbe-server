@@ -35,6 +35,39 @@ export function signJwtToken(payload) {
 }
 
 /** Authenticates Bearer, x-auth-token, or cookie tokens and populates req.user. */
+export async function optionalVerifyToken(req, _res, next) {
+  if (!env.jwtSecret) return next()
+  const token = extractToken(req)
+  if (!token) return next()
+
+  try {
+    const decoded = jwt.verify(token, env.jwtSecret)
+    if (!decoded || typeof decoded !== "object") return next()
+
+    req.user = {
+      userId: decoded.userId || decoded.id || "",
+      email: decoded.email || "",
+      name: decoded.name || "",
+      role: VALID_ROLES.has(decoded.role) ? decoded.role : "student",
+      plan: normalizePlan(decoded.plan),
+    }
+
+    if (isDBConnected()) {
+      const user = await findUserForRequest(getUsersCollection(), req)
+      if (user) {
+        req.user.userId = String(user._id)
+        req.user.email = user.email || req.user.email
+        req.user.name = user.name || req.user.name
+        req.user.role = normalizeRole(user.role)
+        req.user.plan = normalizePlan(user.plan)
+      }
+    }
+  } catch {
+    // Invalid optional token should not block public reads.
+  }
+  return next()
+}
+
 export async function verifyToken(req, res, next) {
   if (!env.jwtSecret) {
     return res.status(503).json({ message: "JWT_SECRET is not configured on the server." })
@@ -84,7 +117,9 @@ export async function verifyToken(req, res, next) {
       req.user.role = normalizeRole(user.role)
       req.user.plan = normalizePlan(user.plan)
     } catch {
-      // Token claims remain usable if the profile lookup transiently fails.
+      return res
+        .status(503)
+        .json({ message: "Could not verify account state. Try again shortly." })
     }
   }
 
@@ -103,3 +138,8 @@ function requireRole(role) {
 export const verifyStudent = requireRole("student")
 export const verifyTutor = requireRole("tutor")
 export const verifyAdmin = requireRole("admin")
+
+export function verifyTutorOrAdmin(req, res, next) {
+  if (req.user?.role === "tutor" || req.user?.role === "admin") return next()
+  return res.status(403).json({ message: "Tutor or admin access only." })
+}

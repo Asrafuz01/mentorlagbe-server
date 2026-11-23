@@ -5,7 +5,12 @@ import {
   getUsersCollection,
   isDBConnected,
 } from "../config/db.js"
-import { verifyToken, verifyTutor } from "../middlewares/auth.middleware.js"
+import {
+  optionalVerifyToken,
+  verifyToken,
+  verifyTutor,
+  verifyTutorOrAdmin,
+} from "../middlewares/auth.middleware.js"
 import { findById, hasValidId } from "../utils/ids.js"
 import { findUserForRequest, isProPlan } from "../utils/user.js"
 import { readBoundedNumber, readBoundedText } from "../utils/validation.js"
@@ -204,7 +209,7 @@ router.get("/", verifyScopedAccess, async (req, res, next) => {
   }
 })
 
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", optionalVerifyToken, async (req, res, next) => {
   try {
     if (!isDBConnected()) return databaseUnavailable(res)
     if (!hasValidId(req.params.id)) {
@@ -212,11 +217,14 @@ router.get("/:id", async (req, res, next) => {
     }
 
     const tuition = await findById(getTuitionsCollection(), req.params.id)
-    if (
-      !tuition ||
-      text(tuition.approvalStatus).toLowerCase() !== "approved" ||
-      tuition.isActive === false
-    ) {
+    if (!tuition) {
+      return res.status(404).json({ message: "Tuition not found." })
+    }
+
+    const isPublic =
+      text(tuition.approvalStatus).toLowerCase() === "approved" &&
+      tuition.isActive !== false
+    if (!isPublic && !isOwner(tuition, req.user)) {
       return res.status(404).json({ message: "Tuition not found." })
     }
     return res.status(200).json(tuition)
@@ -363,8 +371,8 @@ async function deleteTuition(req, res, next) {
   }
 }
 
-router.patch("/:id", verifyToken, verifyTutor, updateTuition)
-router.put("/:id", verifyToken, verifyTutor, updateTuition)
-router.delete("/:id", verifyToken, verifyTutor, deleteTuition)
+router.patch("/:id", verifyToken, verifyTutorOrAdmin, updateTuition)
+router.put("/:id", verifyToken, verifyTutorOrAdmin, updateTuition)
+router.delete("/:id", verifyToken, verifyTutorOrAdmin, deleteTuition)
 
 export default router
