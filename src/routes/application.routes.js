@@ -7,9 +7,19 @@ import {
 } from "../config/db.js"
 import { verifyStudent, verifyToken, verifyTutor } from "../middlewares/auth.middleware.js"
 import { findById, hasValidId } from "../utils/ids.js"
+import { readBoundedText } from "../utils/validation.js"
 
 const router = Router()
 const VALID_STATUSES = new Set(["accepted", "rejected"])
+const FIELD_LIMITS = {
+  tuitionId: 255,
+  studentName: 120,
+  studentPhone: 60,
+  preferredSchedule: 200,
+  studentNote: 2000,
+  note: 2000,
+  message: 2000,
+}
 
 const databaseUnavailable = (res) =>
   res.status(503).json({ message: "Database is unavailable. Try again shortly." })
@@ -35,9 +45,30 @@ router.post("/", verifyToken, verifyStudent, async (req, res, next) => {
   try {
     if (!isDBConnected()) return databaseUnavailable(res)
 
-    const tuitionId = text(req.body?.tuitionId)
+    const body = req.body && typeof req.body === "object" ? req.body : {}
+    const tuitionId = readBoundedText(body.tuitionId, FIELD_LIMITS.tuitionId)
+    if (tuitionId === null) {
+      return res.status(400).json({ message: "tuitionId is invalid." })
+    }
     if (!tuitionId) {
       return res.status(400).json({ message: "tuitionId is required." })
+    }
+
+    const studentName = readBoundedText(body.studentName, FIELD_LIMITS.studentName)
+    const studentPhone = readBoundedText(body.studentPhone, FIELD_LIMITS.studentPhone)
+    const preferredSchedule = readBoundedText(
+      body.preferredSchedule,
+      FIELD_LIMITS.preferredSchedule
+    )
+    const studentNote = readBoundedText(body.studentNote, FIELD_LIMITS.studentNote)
+    const note = readBoundedText(body.note, FIELD_LIMITS.note)
+    const message = readBoundedText(body.message, FIELD_LIMITS.message)
+    if (
+      [studentName, studentPhone, preferredSchedule, studentNote, note, message].some(
+        (value) => value === null
+      )
+    ) {
+      return res.status(400).json({ message: "One or more application fields are too long." })
     }
 
     const tuitions = getTuitionsCollection()
@@ -69,12 +100,12 @@ router.post("/", verifyToken, verifyStudent, async (req, res, next) => {
     const application = {
       tuitionId: storedTuitionId,
       studentId: req.user.userId || "",
-      studentName: text(req.body.studentName) || text(req.user.name),
+      studentName: studentName || text(req.user.name),
       studentEmail,
-      studentPhone: text(req.body.studentPhone),
-      preferredSchedule: text(req.body.preferredSchedule),
-      studentNote: text(req.body.studentNote) || text(req.body.note),
-      message: text(req.body.message),
+      studentPhone,
+      preferredSchedule,
+      studentNote: studentNote || note,
+      message,
       status: "pending",
       tutorEmail: text(tuition.tutorEmail),
       tutorName: text(tuition.tutorName),

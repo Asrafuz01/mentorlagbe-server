@@ -3,27 +3,35 @@ import { Router } from "express"
 import { getUsersCollection, isDBConnected } from "../config/db.js"
 import { verifyToken } from "../middlewares/auth.middleware.js"
 import { findUserForRequest, toPublicUser } from "../utils/user.js"
+import { readBoundedText } from "../utils/validation.js"
 
 const router = Router()
 const PROFILE_FIELDS = ["name", "phone", "bio", "image"]
+const FIELD_LIMITS = {
+  name: 120,
+  phone: 60,
+  bio: 2000,
+  image: 2048,
+}
 
 function collectProfileUpdates(body) {
   const updates = {}
+  const source = body && typeof body === "object" ? body : {}
 
   for (const field of PROFILE_FIELDS) {
-    if (!body || !(field in body)) continue
+    if (!(field in source)) continue
 
-    const value = body[field]
+    const value = source[field]
     if (value === null) {
       if (field === "name") return { error: "Name cannot be empty." }
       updates[field] = field === "image" ? null : ""
       continue
     }
-    if (typeof value !== "string") {
-      return { error: `${field} must be a string.` }
-    }
 
-    const trimmed = value.trim()
+    const trimmed = readBoundedText(value, FIELD_LIMITS[field])
+    if (trimmed === null) {
+      return { error: `${field} is invalid or too long.` }
+    }
     if (field === "name" && !trimmed) {
       return { error: "Name cannot be empty." }
     }

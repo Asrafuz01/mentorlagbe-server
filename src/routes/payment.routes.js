@@ -8,10 +8,12 @@ import {
 } from "../config/db.js"
 import { env } from "../config/env.js"
 import { verifyToken } from "../middlewares/auth.middleware.js"
+import { paymentVerifyRateLimit } from "../middlewares/rate-limit.js"
 import { normalizeRole } from "../utils/user.js"
 
 const router = Router()
 const stripe = env.stripeSecretKey ? new Stripe(env.stripeSecretKey) : null
+const MAX_SESSION_ID_LENGTH = 255
 
 const PLANS = {
   "student-pro": {
@@ -64,6 +66,23 @@ function stripeUnavailable(res) {
     message:
       "Stripe is not configured on the server. Add STRIPE_SECRET_KEY to .env to enable checkout.",
   })
+}
+
+/** Payment/session details are only readable by the customer who created them. */
+function isPaymentOwner(payment, user) {
+  const paymentEmail = normalizeEmail(payment.userEmail)
+  const userEmail = normalizeEmail(user.email)
+  const paymentUserId = text(payment.userId)
+  const userId = text(user.userId)
+
+  return Boolean(
+    (userEmail && paymentEmail === userEmail) ||
+      (userId && paymentUserId === userId)
+  )
+}
+
+function paymentNotFound(res) {
+  return res.status(404).json({ message: "Payment session not found for this account." })
 }
 
 /** Derives the same identity from Stripe metadata, query fallbacks, or a local record. */
@@ -250,12 +269,16 @@ async function fulfillPaidSession(session, fallback = {}) {
 
 router.post("/create-checkout-session", verifyToken, async (req, res, next) => {
   try {
-    const body = req.body || {}
+    const body = req.body && typeof req.body === "object" ? req.body : {}
     const plan = normalizePlan(body.plan, req.user.role)
     if (!plan) {
       return res.status(400).json({
         message: "plan must be 'student-pro' or 'tutor-pro'.",
       })
+    }
+    const requestedMode = text(body.mode)
+    if (requestedMode && requestedMode !== "payment" && requestedMode !== "subscription") {
+      return res.status(400).json({ message: "mode must be 'payment' or 'subscription'." })
     }
     if (!stripe) return stripeUnavailable(res)
 
@@ -265,7 +288,7 @@ router.post("/create-checkout-session", verifyToken, async (req, res, next) => {
     }
 
     const role = plan === "tutor-pro" ? "tutor" : "student"
-    const pricing = await buildCheckoutItems(plan, body.mode)
+    const pricing = await buildCheckoutItems(plan, requestedMode)
     const identity = {
       plan,
       userEmail,
@@ -305,22 +328,19 @@ router.post("/create-checkout-session", verifyToken, async (req, res, next) => {
   }
 })
 
-router.get("/verify", async (req, res, next) => {
+router.get("/verify", verifyToken, paymentVerifyRateLimit, async (req, res, next) => {
   try {
     const sessionId = text(req.query.session_id)
-    if (!sessionId) {
-      return res.status(400).json({ message: "session_id is required." })
+    if (!sessionId || sessionId.length > MAX_SESSION_ID_LENGTH) {
+      return res.status(400).json({ message: "A valid session_id is required." })
     }
 
-    if (!stripe) {
-      if (!isDBConnected()) return databaseUnavailable(res)
+    if (!isDBConnected()) return databaseUnavailable(res)
+    const payments = getPaymentsCollection()
 
-      const local = await getPaymentsCollection().findOne({
-        stripeSessionId: sessionId,
-      })
-      if (!local) {
-        return res.status(404).json({ message: "Payment session not found." })
-      }
+    if (!stripe) {
+      const local = await payments.findOne({ stripeSessionId: sessionId })
+      if (!local || !isPaymentOwner(local, req.user)) return paymentNotFound(res)
       if (text(local.status) !== "completed") {
         return res.status(409).json({
           message: "Payment has not been completed yet.",
@@ -350,13 +370,19 @@ router.get("/verify", async (req, res, next) => {
       .catch(() => {
         throw httpError(404, "Stripe checkout session not found.")
       })
+
+    const sessionIdentity = identityFromSession(session)
+    if (!isPaymentOwner(sessionIdentity, req.user)) {
+      const local = await payments.findOne({ stripeSessionId: sessionId })
+      if (!local || !isPaymentOwner(local, req.user)) return paymentNotFound(res)
+    }
+
     if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") {
       return res.status(409).json({
         message: "Payment has not been completed yet.",
         status: session.payment_status,
       })
     }
-    if (!isDBConnected()) return databaseUnavailable(res)
 
     const payment = await fulfillPaidSession(session)
     return res.status(200).json({ verified: true, payment })

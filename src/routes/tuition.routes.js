@@ -8,11 +8,20 @@ import {
 import { verifyToken, verifyTutor } from "../middlewares/auth.middleware.js"
 import { findById, hasValidId } from "../utils/ids.js"
 import { findUserForRequest, isProPlan } from "../utils/user.js"
+import { readBoundedNumber, readBoundedText } from "../utils/validation.js"
 
 const router = Router()
 const DEFAULT_LIMIT = 9
 const MAX_LIMIT = 50
 const FREE_PLAN_LIMIT = 2
+const FIELD_LIMITS = {
+  title: 160,
+  subject: 100,
+  classLevel: 80,
+  location: 160,
+  bannerImage: 2048,
+  description: 5000,
+}
 
 const EDITABLE_FIELDS = [
   "title",
@@ -141,12 +150,19 @@ function isOwner(tuition, user) {
 }
 
 function normalizeUpdate(field, value) {
-  if (field === "mode") return normalizeMode(value) || "Online"
-  if (field === "monthlyFee" || field === "daysPerWeek") {
-    return Number(value) || 0
+  if (field === "mode") return normalizeMode(value)
+  if (field === "monthlyFee") {
+    return readBoundedNumber(value, { min: 0, max: 1_000_000 })
   }
-  if (field === "isActive") return value === true || value === "true"
-  return text(value)
+  if (field === "daysPerWeek") {
+    return readBoundedNumber(value, { min: 0, max: 7 })
+  }
+  if (field === "isActive") {
+    if (value === true || value === "true") return true
+    if (value === false || value === "false") return false
+    return null
+  }
+  return readBoundedText(value, FIELD_LIMITS[field] || 1000)
 }
 
 router.get("/", verifyScopedAccess, async (req, res, next) => {
@@ -213,13 +229,21 @@ router.post("/", verifyToken, verifyTutor, async (req, res, next) => {
   try {
     if (!isDBConnected()) return databaseUnavailable(res)
 
-    const body = req.body || {}
-    const title = text(body.title)
-    if (!title) {
+    const body = req.body && typeof req.body === "object" ? req.body : {}
+    const fields = {}
+    for (const field of EDITABLE_FIELDS) {
+      if (!(field in body)) continue
+      const value = normalizeUpdate(field, body[field])
+      if (value === null || (field === "title" && !value)) {
+        return res.status(400).json({ message: `${field} is invalid.` })
+      }
+      fields[field] = value
+    }
+    if (!fields.title) {
       return res.status(400).json({ message: "Tuition title is required." })
     }
 
-    const tutorEmail = text(req.user.email) || text(body.tutorEmail)
+    const tutorEmail = text(req.user.email)
     const tutorName = text(req.user.name) || text(body.tutorName)
     const users = getUsersCollection()
     const tuitions = getTuitionsCollection()
@@ -243,17 +267,17 @@ router.post("/", verifyToken, verifyTutor, async (req, res, next) => {
 
     const now = new Date()
     const tuition = {
-      title,
-      subject: text(body.subject) || "General",
-      classLevel: text(body.classLevel) || "All levels",
-      mode: normalizeMode(body.mode) || "Online",
-      location: text(body.location) || "Online",
-      monthlyFee: Number(body.monthlyFee) || 0,
-      daysPerWeek: Number(body.daysPerWeek) || 0,
-      bannerImage: text(body.bannerImage),
-      description: text(body.description),
+      title: fields.title,
+      subject: fields.subject || "General",
+      classLevel: fields.classLevel || "All levels",
+      mode: fields.mode || "Online",
+      location: fields.location || "Online",
+      monthlyFee: fields.monthlyFee ?? 0,
+      daysPerWeek: fields.daysPerWeek ?? 0,
+      bannerImage: fields.bannerImage || "",
+      description: fields.description || "",
       approvalStatus: "pending",
-      isActive: true,
+      isActive: fields.isActive ?? true,
       tutorEmail,
       tutorName,
       tutorId: req.user.userId || "",
@@ -287,10 +311,14 @@ async function updateTuition(req, res, next) {
     }
 
     const updates = {}
+    const body = req.body && typeof req.body === "object" ? req.body : {}
     for (const field of EDITABLE_FIELDS) {
-      if (req.body && field in req.body) {
-        updates[field] = normalizeUpdate(field, req.body[field])
+      if (!(field in body)) continue
+      const value = normalizeUpdate(field, body[field])
+      if (value === null || (field === "title" && !value)) {
+        return res.status(400).json({ message: `${field} is invalid.` })
       }
+      updates[field] = value
     }
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ message: "No tuition fields to update." })

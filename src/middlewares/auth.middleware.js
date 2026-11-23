@@ -2,35 +2,11 @@ import jwt from "jsonwebtoken"
 
 import { getUsersCollection, isDBConnected } from "../config/db.js"
 import { env } from "../config/env.js"
+import { readCookies } from "../utils/cookies.js"
 import { findUserForRequest, normalizePlan, normalizeRole } from "../utils/user.js"
 
 const BEARER_TOKEN = /^Bearer\s+(.+)$/i
 const VALID_ROLES = new Set(["student", "tutor", "admin"])
-
-/** Express does not parse cookies by default, so read them from the raw header. */
-function readCookies(req) {
-  if (req.cookies && typeof req.cookies === "object") return req.cookies
-
-  const header = req.headers?.cookie
-  if (typeof header !== "string" || !header.trim()) return {}
-
-  const cookies = {}
-  for (const entry of header.split(";")) {
-    const separator = entry.indexOf("=")
-    if (separator < 0) continue
-
-    const key = entry.slice(0, separator).trim()
-    const rawValue = entry.slice(separator + 1).trim()
-    if (!key) continue
-
-    try {
-      cookies[key] = decodeURIComponent(rawValue)
-    } catch {
-      cookies[key] = rawValue
-    }
-  }
-  return cookies
-}
 
 function extractToken(req) {
   const authorization = req.headers?.authorization

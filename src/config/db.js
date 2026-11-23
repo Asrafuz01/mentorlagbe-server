@@ -7,6 +7,9 @@ const COLLECTIONS = {
   tuitions: "tuitions",
   applications: "applications",
   payments: "payments",
+  // BetterAuth's default singular model names.
+  authUsers: "user",
+  authSessions: "session",
 }
 
 let client = null
@@ -41,6 +44,15 @@ export function getPaymentsCollection() {
   return getDB().collection(COLLECTIONS.payments)
 }
 
+/** BetterAuth's user and session stores, used only for session verification. */
+export function getAuthUsersCollection() {
+  return getDB().collection(COLLECTIONS.authUsers)
+}
+
+export function getAuthSessionsCollection() {
+  return getDB().collection(COLLECTIONS.authSessions)
+}
+
 /** Creates query indexes without letting a legacy/shaped collection block startup. */
 async function safeCreateIndex(collection, spec, options, label) {
   try {
@@ -55,6 +67,8 @@ async function ensureIndexes() {
   await Promise.all([
     safeCreateIndex(getUsersCollection(), { email: 1 }, {}, "users.email"),
     safeCreateIndex(getUsersCollection(), { role: 1 }, {}, "users.role"),
+    safeCreateIndex(getAuthUsersCollection(), { email: 1 }, {}, "auth.user_email"),
+    safeCreateIndex(getAuthSessionsCollection(), { token: 1 }, {}, "auth.session_token"),
     safeCreateIndex(
       getTuitionsCollection(),
       { approvalStatus: 1, isActive: 1, createdAt: -1, _id: -1 },

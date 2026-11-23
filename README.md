@@ -23,16 +23,19 @@ No real credentials, passwords, tokens, or API keys are committed to this reposi
 | Email | `admin@mentorlagbe.com` (demo identity created by `npm run seed`) |
 | Password | **Not committed.** The seed does not create a BetterAuth password. |
 | Role | `admin` |
-| JWT | Obtain locally from `POST /api/auth/jwt` |
+| JWT | Exchange a signed-in BetterAuth session at `POST /api/auth/jwt` |
 
 Local admin setup:
 
 1. Copy `.env.example` to `.env` and fill in local values. Never commit `.env`.
-2. Run `npm run seed`. It upserts a demo admin record in the `users` collection with `role: "admin"` and no password.
-3. Use the Next.js client to sign up a local demo admin and promote the BetterAuth user's `role` to `admin` if you need UI sign-in with admin privileges.
-4. Call `POST /api/auth/jwt` with the admin email to receive a token, then send it as `Authorization: Bearer <token>`, `x-auth-token`, or a `token` cookie on protected routes.
+2. Set `BETTER_AUTH_SECRET` to the **same value** used by the Next.js client so this API can verify BetterAuth session cookies.
+3. Run `npm run seed`. It upserts a demo admin record in the `users` collection with `role: "admin"` and no password.
+4. Sign in from the Next.js client with the admin email's BetterAuth account (or promote a local BetterAuth user's `role` to `admin`), then let the client call `POST /api/auth/jwt`. The server derives the email from the verified session; request-body identity fields cannot select another account, an admin role, or a paid plan.
+5. Send the returned token as `Authorization: Bearer <token>`, `x-auth-token`, or a `token` cookie on protected routes.
 
-Use placeholder credentials only. Keep `JWT_SECRET`, `STRIPE_SECRET_KEY`, webhook secrets, price IDs, and MongoDB credentials in your local `.env`.
+For seed-only local testing where no BetterAuth session exists, set `ALLOW_DEV_JWT_WITHOUT_SESSION=true` in `.env` and `NODE_ENV=development`. This fallback is ignored in production, never creates admin/paid users, and never promotes an existing account. Prefer the real session flow whenever possible.
+
+Use placeholder credentials only. Keep `JWT_SECRET`, `BETTER_AUTH_SECRET`, `STRIPE_SECRET_KEY`, webhook secrets, price IDs, and MongoDB credentials in your local `.env`.
 
 ## Key Features
 
@@ -68,6 +71,9 @@ CLIENT_URL=http://localhost:3000
 MONGODB_URI=<local-or-hosted-mongodb-uri>
 DB_NAME=mentorlagbedb
 JWT_SECRET=<local-random-secret>
+BETTER_AUTH_SECRET=<same-better-auth-secret-as-client>
+BETTER_AUTH_COOKIE_PREFIX=better-auth
+ALLOW_DEV_JWT_WITHOUT_SESSION=false
 STRIPE_SECRET_KEY=<local-stripe-secret-key>
 STRIPE_WEBHOOK_SECRET=<local-stripe-webhook-secret>
 STRIPE_STUDENT_PRO_PRICE_ID=<local-student-pro-price-id>
@@ -111,7 +117,7 @@ npm test       # Node test runner
 | Admin | `/api/admin` | Requires `verifyAdmin` |
 | Payments | `/api/payments` | Checkout, verify, webhook |
 
-All `/api/*` responses are JSON. Protected routes expect a JWT from `POST /api/auth/jwt`.
+All `/api/*` responses are JSON. Protected routes expect a JWT from `POST /api/auth/jwt`, which requires a valid BetterAuth session cookie unless the explicit local-dev fallback is enabled. Payment verification also requires the JWT of the customer who owns the checkout session.
 
 ## Demo Seed Data
 
