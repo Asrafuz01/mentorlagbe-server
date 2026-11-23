@@ -15,7 +15,16 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const SESSION_COOKIE_SUFFIX = ".session_token"
 
 function text(value) {
-  return typeof value === "string" ? value.trim() : ""
+  if (typeof value === "string") return value.trim()
+  if (value instanceof ObjectId) return value.toHexString()
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof value.toHexString === "function"
+  ) {
+    return String(value.toHexString()).trim()
+  }
+  return ""
 }
 
 function decodeIfNeeded(value) {
