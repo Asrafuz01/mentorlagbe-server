@@ -111,7 +111,15 @@ process.on("uncaughtException", (error) => {
   void shutdown("uncaughtException", 1)
 })
 
-startServer().catch((error) => {
-  console.error("[server] Fatal startup error:", error)
-  process.exit(1)
-})
+export default app
+
+if (process.env.VERCEL) {
+  void connectDB().catch((error) => {
+    console.error("[db] Vercel startup connection failed:", error.message)
+  })
+} else {
+  startServer().catch((error) => {
+    console.error("[server] Fatal startup error:", error)
+    process.exit(1)
+  })
+}
