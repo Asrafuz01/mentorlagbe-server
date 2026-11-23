@@ -12,6 +12,7 @@ import userRoutes from "./routes/user.routes.js"
 
 const app = express()
 
+app.set("trust proxy", 1)
 app.disable("x-powered-by")
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff")
