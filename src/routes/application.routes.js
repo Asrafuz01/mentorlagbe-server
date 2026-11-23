@@ -27,7 +27,7 @@ function isOpenForApplications(tuition) {
   return Boolean(
     tuition &&
       text(tuition.approvalStatus).toLowerCase() === "approved" &&
-      tuition.isActive !== false
+      tuition.isActive === true
   )
 }
 
@@ -87,7 +87,17 @@ router.post("/", verifyToken, verifyStudent, async (req, res, next) => {
       updatedAt: now,
     }
 
-    const result = await applications.insertOne(application)
+    let result
+    try {
+      result = await applications.insertOne(application)
+    } catch (error) {
+      if (error?.code === 11000) {
+        return res.status(409).json({
+          message: "You have already applied to this tuition.",
+        })
+      }
+      throw error
+    }
     return res.status(201).json({ ...application, _id: result.insertedId })
   } catch (error) {
     return next(error)
@@ -173,18 +183,18 @@ router.patch("/:id/status", verifyToken, verifyTutor, async (req, res, next) => 
     if (!application) {
       return res.status(404).json({ message: "Application not found." })
     }
-    if (application.status !== "pending") {
-      return res.status(400).json({
-        message: "Only pending applications can be accepted or rejected.",
-      })
-    }
-
     const email = text(req.user.email).toLowerCase()
     const tuition = await findById(getTuitionsCollection(), text(application.tuitionId))
     if (!isTutorOf(tuition, email) && text(application.tutorEmail).toLowerCase() !== email) {
       return res
         .status(403)
         .json({ message: "You can only respond to applications for your tuitions." })
+    }
+
+    if (application.status !== "pending") {
+      return res.status(400).json({
+        message: "Only pending applications can be accepted or rejected.",
+      })
     }
 
     await applications.updateOne(

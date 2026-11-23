@@ -234,7 +234,10 @@ async function fulfillPaidSession(session, fallback = {}) {
         },
         $setOnInsert: {
           name: identity.userName || identity.userEmail.split("@")[0],
-          role: identity.userRole,
+          role:
+            normalizeRole(identity.userRole) === "admin"
+              ? "student"
+              : normalizeRole(identity.userRole) || "student",
           createdAt: now.toISOString(),
         },
       },
@@ -318,6 +321,12 @@ router.get("/verify", async (req, res, next) => {
       if (!local) {
         return res.status(404).json({ message: "Payment session not found." })
       }
+      if (text(local.status) !== "completed") {
+        return res.status(409).json({
+          message: "Payment has not been completed yet.",
+          status: local.status,
+        })
+      }
 
       const payment = await fulfillPaidSession(
         { id: sessionId },
@@ -358,30 +367,28 @@ router.get("/verify", async (req, res, next) => {
 
 router.post("/webhook", async (req, res, next) => {
   try {
-    if (!stripe && env.stripeWebhookSecret) return stripeUnavailable(res)
+    if (!stripe || !env.stripeWebhookSecret) {
+      return res.status(503).json({
+        message:
+          "Stripe webhooks are not configured. Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to .env.",
+      })
+    }
 
+    const signature = req.headers["stripe-signature"]
+    if (typeof signature !== "string" || !signature.trim()) {
+      return res.status(400).json({ message: "Missing Stripe signature header." })
+    }
+
+    const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}))
     let event
-    if (env.stripeWebhookSecret) {
-      const signature = req.headers["stripe-signature"]
-      if (typeof signature !== "string" || !signature.trim()) {
-        return res.status(400).json({ message: "Missing Stripe signature header." })
-      }
-
-      const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}))
-      try {
-        event = stripe.webhooks.constructEvent(
-          rawBody,
-          signature.trim(),
-          env.stripeWebhookSecret
-        )
-      } catch {
-        return res.status(400).json({ message: "Invalid Stripe webhook signature." })
-      }
-    } else {
-      event = req.body
-      if (!event || typeof event !== "object" || !event.type) {
-        return res.status(400).json({ message: "Invalid webhook payload." })
-      }
+    try {
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        signature.trim(),
+        env.stripeWebhookSecret
+      )
+    } catch {
+      return res.status(400).json({ message: "Invalid Stripe webhook signature." })
     }
 
     if (event.type !== "checkout.session.completed") {
@@ -394,6 +401,16 @@ router.post("/webhook", async (req, res, next) => {
     if (typeof session === "string" && stripe) {
       session = await stripe.checkout.sessions.retrieve(session)
     }
+
+    const paymentStatus = text(session?.payment_status)
+    if (
+      paymentStatus &&
+      paymentStatus !== "paid" &&
+      paymentStatus !== "no_payment_required"
+    ) {
+      return res.status(200).json({ received: true, processed: false })
+    }
+
     const payment = await fulfillPaidSession(session || {})
     return res.status(200).json({ received: true, processed: Boolean(payment) })
   } catch (error) {

@@ -46,7 +46,8 @@ app.use((_req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error("[http] Request failed:", error)
-  const status = Number.isInteger(error.status) ? error.status : 500
+  const reportedStatus = error.status ?? error.statusCode
+  const status = Number.isInteger(reportedStatus) ? reportedStatus : 500
   res.status(status).json({
     message: status === 500 ? "Internal server error" : error.message,
   })

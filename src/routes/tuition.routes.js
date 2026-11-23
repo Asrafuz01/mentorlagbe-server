@@ -7,7 +7,7 @@ import {
 } from "../config/db.js"
 import { verifyToken, verifyTutor } from "../middlewares/auth.middleware.js"
 import { findById, hasValidId } from "../utils/ids.js"
-import { findUserForRequest } from "../utils/user.js"
+import { findUserForRequest, isProPlan } from "../utils/user.js"
 
 const router = Router()
 const DEFAULT_LIMIT = 9
@@ -43,10 +43,6 @@ function normalizeMode(value) {
   return mode === "online" || mode === "offline"
     ? mode[0].toUpperCase() + mode.slice(1)
     : null
-}
-
-function isProPlan(plan) {
-  return plan === "pro" || plan === "tutor-pro"
 }
 
 /** Bearer auth is required only when a caller asks for scoped/all-status tuitions. */

@@ -3,13 +3,7 @@ import { Router } from "express"
 import { getUsersCollection, isDBConnected } from "../config/db.js"
 import { env } from "../config/env.js"
 import { signJwtToken } from "../middlewares/auth.middleware.js"
-import {
-  normalizePlan,
-  normalizeRole,
-  parsePlan,
-  parseRole,
-  toPublicUser,
-} from "../utils/user.js"
+import { normalizePlan, normalizeRole, parseRole, toPublicUser } from "../utils/user.js"
 
 const router = Router()
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -26,7 +20,7 @@ router.post("/jwt", async (req, res, next) => {
       return res.status(503).json({ message: "Database is unavailable. Try again shortly." })
     }
 
-    const { email, name, role, plan, image } = req.body || {}
+    const { email, name, role, image } = req.body || {}
     const normalizedEmail =
       typeof email === "string" ? email.trim().toLowerCase() : ""
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
@@ -36,7 +30,6 @@ router.post("/jwt", async (req, res, next) => {
     const providedName = typeof name === "string" ? name.trim() : ""
     const providedImage = typeof image === "string" ? image.trim() : ""
     const incomingRole = parseRole(role)
-    const incomingPlan = parsePlan(plan)
     const now = new Date().toISOString()
     const users = getUsersCollection()
 
@@ -45,27 +38,19 @@ router.post("/jwt", async (req, res, next) => {
       const result = await users.insertOne({
         email: normalizedEmail,
         name: providedName || normalizedEmail.split("@")[0],
-        role: incomingRole || "student",
-        plan: incomingPlan || "free",
+        role: incomingRole && incomingRole !== "admin" ? incomingRole : "student",
+        plan: "free",
         ...(providedImage ? { image: providedImage } : {}),
         createdAt: now,
         updatedAt: now,
       })
       user = await users.findOne({ _id: result.insertedId })
     } else {
-      // Admin and purchased plans stay server-owned. A valid explicit role from
-      // BetterAuth syncs into the Express projection so newly signed-up or
-      // re-synced students are not rejected by verifyStudent.
+      // Role and plan are server-owned after creation. Only profile fields may
+      // be synced here; role changes go through the admin API.
       const update = { updatedAt: now }
       if (providedName) update.name = providedName
       if (providedImage) update.image = providedImage
-      if (
-        incomingRole &&
-        incomingRole !== "admin" &&
-        normalizeRole(user.role) !== "admin"
-      ) {
-        update.role = incomingRole
-      }
 
       await users.updateOne({ _id: user._id }, { $set: update })
       user = await users.findOne({ _id: user._id })

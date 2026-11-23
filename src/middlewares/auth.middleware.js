@@ -89,7 +89,7 @@ export async function verifyToken(req, res, next) {
     email: decoded.email || "",
     name: decoded.name || "",
     role: VALID_ROLES.has(decoded.role) ? decoded.role : "student",
-    plan: decoded.plan || "free",
+    plan: normalizePlan(decoded.plan),
   }
 
   // Role and plan are server-owned; refresh them so admin/payment changes take
@@ -97,13 +97,16 @@ export async function verifyToken(req, res, next) {
   if (isDBConnected()) {
     try {
       const user = await findUserForRequest(getUsersCollection(), req)
-      if (user) {
-        req.user.userId = String(user._id)
-        req.user.email = user.email || req.user.email
-        req.user.name = user.name || req.user.name
-        req.user.role = normalizeRole(user.role)
-        req.user.plan = normalizePlan(user.plan)
+      if (!user) {
+        return res.status(401).json({
+          message: "This account no longer exists. Please sign in again.",
+        })
       }
+      req.user.userId = String(user._id)
+      req.user.email = user.email || req.user.email
+      req.user.name = user.name || req.user.name
+      req.user.role = normalizeRole(user.role)
+      req.user.plan = normalizePlan(user.plan)
     } catch {
       // Token claims remain usable if the profile lookup transiently fails.
     }
