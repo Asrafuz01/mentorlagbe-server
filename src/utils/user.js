@@ -9,9 +9,19 @@ export function normalizeRole(value) {
   return ROLES.has(role) ? role : "student"
 }
 
+export function parseRole(value) {
+  const role = typeof value === "string" ? value.trim().toLowerCase() : ""
+  return ROLES.has(role) ? role : null
+}
+
 export function normalizePlan(value) {
   const plan = typeof value === "string" ? value.trim().toLowerCase() : ""
   return PLANS.has(plan) ? plan : "free"
+}
+
+export function parsePlan(value) {
+  const plan = typeof value === "string" ? value.trim().toLowerCase() : ""
+  return PLANS.has(plan) ? plan : null
 }
 
 export function isProPlan(value) {

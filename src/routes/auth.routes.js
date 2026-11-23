@@ -3,7 +3,13 @@ import { Router } from "express"
 import { getUsersCollection, isDBConnected } from "../config/db.js"
 import { env } from "../config/env.js"
 import { signJwtToken } from "../middlewares/auth.middleware.js"
-import { normalizePlan, normalizeRole, toPublicUser } from "../utils/user.js"
+import {
+  normalizePlan,
+  normalizeRole,
+  parsePlan,
+  parseRole,
+  toPublicUser,
+} from "../utils/user.js"
 
 const router = Router()
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -29,8 +35,8 @@ router.post("/jwt", async (req, res, next) => {
 
     const providedName = typeof name === "string" ? name.trim() : ""
     const providedImage = typeof image === "string" ? image.trim() : ""
-    const incomingRole = typeof role === "string" && role.trim() ? normalizeRole(role) : null
-    const incomingPlan = typeof plan === "string" && plan.trim() ? normalizePlan(plan) : null
+    const incomingRole = parseRole(role)
+    const incomingPlan = parsePlan(plan)
     const now = new Date().toISOString()
     const users = getUsersCollection()
 
@@ -47,11 +53,19 @@ router.post("/jwt", async (req, res, next) => {
       })
       user = await users.findOne({ _id: result.insertedId })
     } else {
-      // Admin-assigned roles and purchased plans are authoritative. Only sync
-      // the profile fields owned by the BetterAuth session.
+      // Admin and purchased plans stay server-owned. A valid explicit role from
+      // BetterAuth syncs into the Express projection so newly signed-up or
+      // re-synced students are not rejected by verifyStudent.
       const update = { updatedAt: now }
       if (providedName) update.name = providedName
       if (providedImage) update.image = providedImage
+      if (
+        incomingRole &&
+        incomingRole !== "admin" &&
+        normalizeRole(user.role) !== "admin"
+      ) {
+        update.role = incomingRole
+      }
 
       await users.updateOne({ _id: user._id }, { $set: update })
       user = await users.findOne({ _id: user._id })
