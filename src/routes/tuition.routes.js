@@ -200,7 +200,11 @@ router.get("/:id", async (req, res, next) => {
     }
 
     const tuition = await findById(getTuitionsCollection(), req.params.id)
-    if (!tuition) {
+    if (
+      !tuition ||
+      text(tuition.approvalStatus).toLowerCase() !== "approved" ||
+      tuition.isActive === false
+    ) {
       return res.status(404).json({ message: "Tuition not found." })
     }
     return res.status(200).json(tuition)
@@ -294,6 +298,9 @@ async function updateTuition(req, res, next) {
     }
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ message: "No tuition fields to update." })
+    }
+    if (text(tuition.approvalStatus).toLowerCase() === "rejected") {
+      updates.approvalStatus = "pending"
     }
 
     await tuitions.updateOne(

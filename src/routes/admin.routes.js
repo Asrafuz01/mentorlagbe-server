@@ -91,6 +91,9 @@ router.patch("/users/:id/role", async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ message: "User not found." })
     }
+    if (String(user._id) === String(req.user?.userId || "")) {
+      return res.status(400).json({ message: "You cannot change your own role." })
+    }
 
     await users.updateOne(
       { _id: user._id },

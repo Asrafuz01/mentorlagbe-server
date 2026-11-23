@@ -23,6 +23,14 @@ function isTutorOf(tuition, email) {
   return Boolean(email && text(tuition.tutorEmail).toLowerCase() === email.toLowerCase())
 }
 
+function isOpenForApplications(tuition) {
+  return Boolean(
+    tuition &&
+      text(tuition.approvalStatus).toLowerCase() === "approved" &&
+      tuition.isActive !== false
+  )
+}
+
 router.post("/", verifyToken, verifyStudent, async (req, res, next) => {
   try {
     if (!isDBConnected()) return databaseUnavailable(res)
@@ -36,6 +44,11 @@ router.post("/", verifyToken, verifyStudent, async (req, res, next) => {
     const tuition = await findById(tuitions, tuitionId)
     if (!tuition) {
       return res.status(404).json({ message: "Tuition not found." })
+    }
+    if (!isOpenForApplications(tuition)) {
+      return res.status(409).json({
+        message: "This tuition is not currently accepting applications.",
+      })
     }
 
     const applications = getApplicationsCollection()
@@ -159,6 +172,11 @@ router.patch("/:id/status", verifyToken, verifyTutor, async (req, res, next) => 
     const application = await findById(applications, req.params.id)
     if (!application) {
       return res.status(404).json({ message: "Application not found." })
+    }
+    if (application.status !== "pending") {
+      return res.status(400).json({
+        message: "Only pending applications can be accepted or rejected.",
+      })
     }
 
     const email = text(req.user.email).toLowerCase()

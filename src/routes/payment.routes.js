@@ -7,6 +7,7 @@ import {
   isDBConnected,
 } from "../config/db.js"
 import { env } from "../config/env.js"
+import { verifyToken } from "../middlewares/auth.middleware.js"
 import { normalizeRole } from "../utils/user.js"
 
 const router = Router()
@@ -227,7 +228,7 @@ async function fulfillPaidSession(session, fallback = {}) {
       { email: identity.userEmail },
       {
         $set: {
-          plan: "pro",
+          plan: identity.plan,
           proPlan: identity.plan,
           updatedAt: now.toISOString(),
         },
@@ -244,10 +245,10 @@ async function fulfillPaidSession(session, fallback = {}) {
   return payments.findOne({ stripeSessionId: identity.stripeSessionId })
 }
 
-router.post("/create-checkout-session", async (req, res, next) => {
+router.post("/create-checkout-session", verifyToken, async (req, res, next) => {
   try {
     const body = req.body || {}
-    const plan = normalizePlan(body.plan, body.userRole)
+    const plan = normalizePlan(body.plan, req.user.role)
     if (!plan) {
       return res.status(400).json({
         message: "plan must be 'student-pro' or 'tutor-pro'.",
@@ -255,21 +256,19 @@ router.post("/create-checkout-session", async (req, res, next) => {
     }
     if (!stripe) return stripeUnavailable(res)
 
-    const userEmail = normalizeEmail(body.userEmail)
+    const userEmail = normalizeEmail(req.user.email)
     if (!userEmail) {
-      return res.status(400).json({ message: "userEmail is required." })
+      return res.status(400).json({ message: "A verified account email is required." })
     }
 
-    const role = normalizeRole(
-      body.userRole || (plan === "tutor-pro" ? "tutor" : "student")
-    )
+    const role = plan === "tutor-pro" ? "tutor" : "student"
     const pricing = await buildCheckoutItems(plan, body.mode)
     const identity = {
       plan,
       userEmail,
-      userName: text(body.userName),
+      userName: text(req.user.name),
       userRole: role,
-      userId: await resolveUserId(userEmail, body.userId),
+      userId: await resolveUserId(userEmail, req.user.userId),
     }
 
     const session = await stripe.checkout.sessions.create({
