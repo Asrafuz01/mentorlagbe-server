@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken"
 
+import { getUsersCollection, isDBConnected } from "../config/db.js"
 import { env } from "../config/env.js"
+import { findUserForRequest, normalizePlan, normalizeRole } from "../utils/user.js"
 
 const BEARER_TOKEN = /^Bearer\s+(.+)$/i
 const VALID_ROLES = new Set(["student", "tutor", "admin"])
@@ -57,7 +59,7 @@ export function signJwtToken(payload) {
 }
 
 /** Authenticates Bearer, x-auth-token, or cookie tokens and populates req.user. */
-export function verifyToken(req, res, next) {
+export async function verifyToken(req, res, next) {
   if (!env.jwtSecret) {
     return res.status(503).json({ message: "JWT_SECRET is not configured on the server." })
   }
@@ -67,20 +69,12 @@ export function verifyToken(req, res, next) {
     return res.status(401).json({ message: "Authentication required. No token provided." })
   }
 
+  let decoded
   try {
-    const decoded = jwt.verify(token, env.jwtSecret)
+    decoded = jwt.verify(token, env.jwtSecret)
     if (!decoded || typeof decoded !== "object") {
       throw new Error("Invalid token payload")
     }
-
-    req.user = {
-      userId: decoded.userId || decoded.id || "",
-      email: decoded.email || "",
-      name: decoded.name || "",
-      role: VALID_ROLES.has(decoded.role) ? decoded.role : "student",
-      plan: decoded.plan || "free",
-    }
-    return next()
   } catch (error) {
     const expired = error?.name === "TokenExpiredError"
     return res.status(401).json({
@@ -89,6 +83,33 @@ export function verifyToken(req, res, next) {
         : "Invalid or expired token.",
     })
   }
+
+  req.user = {
+    userId: decoded.userId || decoded.id || "",
+    email: decoded.email || "",
+    name: decoded.name || "",
+    role: VALID_ROLES.has(decoded.role) ? decoded.role : "student",
+    plan: decoded.plan || "free",
+  }
+
+  // Role and plan are server-owned; refresh them so admin/payment changes take
+  // effect without waiting for the client's cached JWT to expire.
+  if (isDBConnected()) {
+    try {
+      const user = await findUserForRequest(getUsersCollection(), req)
+      if (user) {
+        req.user.userId = String(user._id)
+        req.user.email = user.email || req.user.email
+        req.user.name = user.name || req.user.name
+        req.user.role = normalizeRole(user.role)
+        req.user.plan = normalizePlan(user.plan)
+      }
+    } catch {
+      // Token claims remain usable if the profile lookup transiently fails.
+    }
+  }
+
+  return next()
 }
 
 function requireRole(role) {

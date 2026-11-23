@@ -3,12 +3,7 @@ import { Router } from "express"
 import { getUsersCollection, isDBConnected } from "../config/db.js"
 import { env } from "../config/env.js"
 import { signJwtToken } from "../middlewares/auth.middleware.js"
-import {
-  isProPlan,
-  normalizePlan,
-  normalizeRole,
-  toPublicUser,
-} from "../utils/user.js"
+import { normalizePlan, normalizeRole, toPublicUser } from "../utils/user.js"
 
 const router = Router()
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -52,21 +47,11 @@ router.post("/jwt", async (req, res, next) => {
       })
       user = await users.findOne({ _id: result.insertedId })
     } else {
-      // Never downgrade a seeded admin or an already-activated Pro account.
-      const nextRole =
-        user.role === "admin" || !incomingRole
-          ? normalizeRole(user.role)
-          : incomingRole
-      const nextPlan =
-        isProPlan(user.plan) || !incomingPlan
-          ? normalizePlan(user.plan)
-          : incomingPlan
-
+      // Admin-assigned roles and purchased plans are authoritative. Only sync
+      // the profile fields owned by the BetterAuth session.
       const update = { updatedAt: now }
       if (providedName) update.name = providedName
       if (providedImage) update.image = providedImage
-      if (nextRole !== user.role) update.role = nextRole
-      if (nextPlan !== user.plan) update.plan = nextPlan
 
       await users.updateOne({ _id: user._id }, { $set: update })
       user = await users.findOne({ _id: user._id })
