@@ -32,6 +32,24 @@ app.use(
   })
 )
 
+app.get("/", (_req, res) => {
+  res.status(200).json({ ok: true, message: "MentorLagbe API is running" })
+})
+
+// Ensure a Vercel cold start finishes the (cached) Mongo connection before any
+// route or middleware checks `isDBConnected()`. Warm invocations reuse the
+// cached promise and skip this entirely.
+app.use(async (_req, _res, next) => {
+  if (isDBConnected()) return next()
+  try {
+    await connectDB()
+    return next()
+  } catch (error) {
+    console.error("[db] Request failed to connect:", error.message)
+    return next()
+  }
+})
+
 app.get("/api/health", (_req, res) => {
   res.status(200).json({
     status: "ok",
@@ -113,11 +131,7 @@ process.on("uncaughtException", (error) => {
 
 export default app
 
-if (process.env.VERCEL) {
-  void connectDB().catch((error) => {
-    console.error("[db] Vercel startup connection failed:", error.message)
-  })
-} else {
+if (!process.env.VERCEL) {
   startServer().catch((error) => {
     console.error("[server] Fatal startup error:", error)
     process.exit(1)
