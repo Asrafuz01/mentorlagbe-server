@@ -6,7 +6,9 @@ import { env, getMissingEnvKeys } from "./config/env.js"
 import adminRoutes from "./routes/admin.routes.js"
 import applicationRoutes from "./routes/application.routes.js"
 import authRoutes from "./routes/auth.routes.js"
+import bookmarkRoutes from "./routes/bookmark.routes.js"
 import paymentRoutes from "./routes/payment.routes.js"
+import reviewRoutes from "./routes/review.routes.js"
 import tuitionRoutes from "./routes/tuition.routes.js"
 import userRoutes from "./routes/user.routes.js"
 
@@ -63,6 +65,8 @@ app.use("/api/auth", authRoutes)
 app.use("/api/users", userRoutes)
 app.use("/api/tuitions", tuitionRoutes)
 app.use("/api/applications", applicationRoutes)
+app.use("/api/bookmarks", bookmarkRoutes)
+app.use("/api/reviews", reviewRoutes)
 app.use("/api/admin", adminRoutes)
 app.use("/api/payments", paymentRoutes)
 

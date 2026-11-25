@@ -113,6 +113,8 @@ npm test       # Node test runner
 | Users | `/api/users` | `GET /me`, `PATCH|PUT /profile` |
 | Tuitions | `/api/tuitions` | Catalog, details, tutor CRUD |
 | Applications | `/api/applications` | Submit, list, cancel, status |
+| Bookmarks | `/api/bookmarks` | Student-only saved tuitions; Free plan limit 5 |
+| Reviews | `/api/reviews` | Public list, accepted-student 1–5 star reviews |
 | Admin | `/api/admin` | Requires `verifyAdmin` |
 | Payments | `/api/payments` | Checkout, verify, webhook |
 
@@ -124,8 +126,9 @@ All `/api/*` responses are JSON. Protected routes expect a JWT from `POST /api/a
 
 - An admin, six tutors, and five students.
 - **12 approved and active tuitions** across Math, Physics, Programming, IELTS, Chemistry, and English, plus pending/rejected listings for moderation.
-- Sample applications linked to real demo students and tuitions.
+- Sample applications linked to real demo students and tuitions, including accepted applications that back the demo reviews.
 - Sample Stripe-style payment records linked to real demo users.
+- Saved tuitions for demo students and 1–5 star reviews on approved tuitions, with cached tuition rating fields synced.
 
 Stable `email` and `seedKey` filters make repeated runs safe. Existing records are kept rather than overwritten.
 

@@ -2,11 +2,14 @@ import {
   connectDB,
   disconnectDB,
   getApplicationsCollection,
+  getBookmarksCollection,
   getPaymentsCollection,
+  getReviewsCollection,
   getTuitionsCollection,
   getUsersCollection,
 } from "../config/db.js"
 import { env } from "../config/env.js"
+import { ratingStats } from "./review-utils.js"
 
 const USER_SEEDS = [
   {
@@ -461,6 +464,149 @@ const APPLICATION_SEEDS = [
     studentNote: "I have basic React experience and want to learn full-stack apps.",
     createdAt: "2026-11-17T10:00:00.000Z",
   },
+  // Additional accepted applications back the seeded reviews below. Each
+  // student/tuition pair is unique so the application unique index is respected.
+  {
+    seedKey: "application-fahim-calculus",
+    studentEmail: "student.fahim@mentorlagbe.com",
+    tuitionKey: "math-calculus-essentials",
+    status: "accepted",
+    studentPhone: "+8801811000002",
+    preferredSchedule: "Weekday mornings",
+    studentNote: "I need differentiation practice for my engineering course.",
+    createdAt: "2026-10-21T10:00:00.000Z",
+  },
+  {
+    seedKey: "application-rakib-organic-chemistry",
+    studentEmail: "student.rakib@mentorlagbe.com",
+    tuitionKey: "chemistry-organic-essentials",
+    status: "accepted",
+    studentPhone: "+8801811000004",
+    preferredSchedule: "Saturday afternoons",
+    studentNote: "Reaction mechanisms are my weakest topic before the final exam.",
+    createdAt: "2026-10-23T10:00:00.000Z",
+  },
+  {
+    seedKey: "application-jannat-ielts-speaking",
+    studentEmail: "student.jannat@mentorlagbe.com",
+    tuitionKey: "ielts-speaking-masterclass",
+    status: "accepted",
+    studentPhone: "+8801811000005",
+    preferredSchedule: "Thursday evenings",
+    studentNote: "I want regular mock interviews to build speaking confidence.",
+    createdAt: "2026-10-25T10:00:00.000Z",
+  },
+]
+
+const BOOKMARK_SEEDS = [
+  {
+    seedKey: "bookmark-anika-algebra",
+    studentEmail: "student.anika@mentorlagbe.com",
+    tuitionKey: "math-algebra-foundations",
+    createdAt: "2026-10-15T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-anika-calculus",
+    studentEmail: "student.anika@mentorlagbe.com",
+    tuitionKey: "math-calculus-essentials",
+    createdAt: "2026-10-16T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-anika-python",
+    studentEmail: "student.anika@mentorlagbe.com",
+    tuitionKey: "programming-python-bootcamp",
+    createdAt: "2026-10-17T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-fahim-python",
+    studentEmail: "student.fahim@mentorlagbe.com",
+    tuitionKey: "programming-python-bootcamp",
+    createdAt: "2026-11-16T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-fahim-nextjs",
+    studentEmail: "student.fahim@mentorlagbe.com",
+    tuitionKey: "programming-nextjs-web",
+    createdAt: "2026-11-17T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-nusrat-ielts-writing",
+    studentEmail: "student.nusrat@mentorlagbe.com",
+    tuitionKey: "ielts-academic-writing",
+    createdAt: "2026-10-19T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-nusrat-ielts-speaking",
+    studentEmail: "student.nusrat@mentorlagbe.com",
+    tuitionKey: "ielts-speaking-masterclass",
+    createdAt: "2026-10-20T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-rakib-mechanics",
+    studentEmail: "student.rakib@mentorlagbe.com",
+    tuitionKey: "physics-mechanics-mastery",
+    createdAt: "2026-11-17T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-rakib-organic-chemistry",
+    studentEmail: "student.rakib@mentorlagbe.com",
+    tuitionKey: "chemistry-organic-essentials",
+    createdAt: "2026-10-24T10:00:00.000Z",
+  },
+  {
+    seedKey: "bookmark-jannat-english",
+    studentEmail: "student.jannat@mentorlagbe.com",
+    tuitionKey: "english-grammar-composition",
+    createdAt: "2026-10-21T10:00:00.000Z",
+  },
+]
+
+// Every seeded review belongs to a student with an accepted application for
+// that tuition, so the demo data obeys the same rule as the review API.
+const REVIEW_SEEDS = [
+  {
+    seedKey: "review-anika-algebra",
+    studentEmail: "student.anika@mentorlagbe.com",
+    tuitionKey: "math-algebra-foundations",
+    rating: 5,
+    comment:
+      "The step-by-step problem solving made quadratic equations finally click for me.",
+    createdAt: "2026-10-28T10:00:00.000Z",
+  },
+  {
+    seedKey: "review-nusrat-ielts-writing",
+    studentEmail: "student.nusrat@mentorlagbe.com",
+    tuitionKey: "ielts-academic-writing",
+    rating: 5,
+    comment:
+      "Detailed Task 2 feedback helped me move from band 6.0 to a consistent 7.0.",
+    createdAt: "2026-11-02T10:00:00.000Z",
+  },
+  {
+    seedKey: "review-fahim-calculus",
+    studentEmail: "student.fahim@mentorlagbe.com",
+    tuitionKey: "math-calculus-essentials",
+    rating: 4,
+    comment:
+      "Clear engineering examples. More practice quizzes would make it perfect.",
+    createdAt: "2026-11-04T10:00:00.000Z",
+  },
+  {
+    seedKey: "review-rakib-organic-chemistry",
+    studentEmail: "student.rakib@mentorlagbe.com",
+    tuitionKey: "chemistry-organic-essentials",
+    rating: 5,
+    comment: "Reaction mechanisms are much easier to revise after these classes.",
+    createdAt: "2026-11-06T10:00:00.000Z",
+  },
+  {
+    seedKey: "review-jannat-ielts-speaking",
+    studentEmail: "student.jannat@mentorlagbe.com",
+    tuitionKey: "ielts-speaking-masterclass",
+    rating: 4,
+    comment: "Friendly mock interviews and honest, useful band-descriptor feedback.",
+    createdAt: "2026-11-08T10:00:00.000Z",
+  },
 ]
 
 const PAYMENT_SEEDS = [
@@ -532,7 +678,14 @@ const PAYMENT_SEEDS = [
   },
 ]
 
-const inserted = { users: 0, tuitions: 0, applications: 0, payments: 0 }
+const inserted = {
+  users: 0,
+  tuitions: 0,
+  applications: 0,
+  payments: 0,
+  bookmarks: 0,
+  reviews: 0,
+}
 
 function iso(value) {
   const date = value instanceof Date ? value : new Date(value)
@@ -656,6 +809,77 @@ async function seedPayments(usersByEmail) {
   }
 }
 
+async function seedBookmarks(usersByEmail, tuitionsByKey) {
+  const bookmarks = getBookmarksCollection()
+
+  for (const seed of BOOKMARK_SEEDS) {
+    const timestamp = iso(seed.createdAt)
+    const student = usersByEmail.get(seed.studentEmail)
+    const tuition = tuitionsByKey.get(seed.tuitionKey)
+    if (!student || !tuition) continue
+
+    await upsert(
+      bookmarks,
+      { seedKey: seed.seedKey },
+      {
+        seedKey: seed.seedKey,
+        tuitionId: String(tuition._id),
+        tuitionTitle: tuition.title,
+        subject: tuition.subject,
+        studentId: String(student._id),
+        studentEmail: student.email,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+      "bookmarks"
+    )
+  }
+}
+
+async function seedReviews(usersByEmail, tuitionsByKey) {
+  const reviews = getReviewsCollection()
+
+  for (const seed of REVIEW_SEEDS) {
+    const timestamp = iso(seed.createdAt)
+    const student = usersByEmail.get(seed.studentEmail)
+    const tuition = tuitionsByKey.get(seed.tuitionKey)
+    if (!student || !tuition) continue
+
+    await upsert(
+      reviews,
+      { seedKey: seed.seedKey },
+      {
+        seedKey: seed.seedKey,
+        tuitionId: String(tuition._id),
+        studentId: String(student._id),
+        studentEmail: student.email,
+        studentName: student.name,
+        rating: seed.rating,
+        comment: seed.comment,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+      "reviews"
+    )
+  }
+
+  // Keep the cached rating fields on every tuition in sync with its reviews,
+  // including tuitions that were seeded on an earlier run.
+  const tuitions = getTuitionsCollection()
+  const allReviews = await reviews.find({}).toArray()
+  for (const tuition of await tuitions.find({}).toArray()) {
+    const stats = ratingStats(
+      allReviews.filter(
+        (review) => String(review.tuitionId) === String(tuition._id)
+      )
+    )
+    await tuitions.updateOne(
+      { _id: tuition._id },
+      { $set: { averageRating: stats.averageRating, reviewCount: stats.reviewCount } }
+    )
+  }
+}
+
 async function main() {
   if (!env.mongodbUri) {
     throw new Error("MONGODB_URI is empty. Add it to .env before running npm run seed.")
@@ -667,6 +891,8 @@ async function main() {
     const tuitionsByKey = await seedTuitions(usersByEmail)
     await seedApplications(usersByEmail, tuitionsByKey)
     await seedPayments(usersByEmail)
+    await seedBookmarks(usersByEmail, tuitionsByKey)
+    await seedReviews(usersByEmail, tuitionsByKey)
   } finally {
     await disconnectDB()
   }
@@ -676,7 +902,8 @@ main()
   .then(() => {
     console.log(
       `[seed] Complete — inserted ${inserted.users} users, ${inserted.tuitions} tuitions, ` +
-        `${inserted.applications} applications, ${inserted.payments} payments ` +
+        `${inserted.applications} applications, ${inserted.payments} payments, ` +
+        `${inserted.bookmarks} bookmarks, ${inserted.reviews} reviews ` +
         "(existing records were kept)."
     )
   })

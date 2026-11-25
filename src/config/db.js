@@ -7,6 +7,8 @@ const COLLECTIONS = {
   tuitions: "tuitions",
   applications: "applications",
   payments: "payments",
+  bookmarks: "bookmarks",
+  reviews: "reviews",
   // BetterAuth's default singular model names.
   authUsers: "user",
   authSessions: "session",
@@ -42,6 +44,14 @@ export function getApplicationsCollection() {
 
 export function getPaymentsCollection() {
   return getDB().collection(COLLECTIONS.payments)
+}
+
+export function getBookmarksCollection() {
+  return getDB().collection(COLLECTIONS.bookmarks)
+}
+
+export function getReviewsCollection() {
+  return getDB().collection(COLLECTIONS.reviews)
 }
 
 /** BetterAuth's user and session stores, used only for session verification. */
@@ -129,6 +139,45 @@ async function ensureIndexes() {
       "payments.status_recent"
     ),
     safeCreateIndex(getPaymentsCollection(), { seedKey: 1 }, {}, "payments.seed_key"),
+    safeCreateIndex(
+      getBookmarksCollection(),
+      { studentEmail: 1, createdAt: -1, _id: -1 },
+      {},
+      "bookmarks.student_recent"
+    ),
+    safeCreateIndex(
+      getBookmarksCollection(),
+      { studentEmail: 1, tuitionId: 1 },
+      {
+        name: "uniq_bookmark_per_student",
+        unique: true,
+        partialFilterExpression: { studentEmail: { $type: "string" } },
+      },
+      "bookmarks.unique_student_tuition"
+    ),
+    safeCreateIndex(
+      getBookmarksCollection(),
+      { seedKey: 1 },
+      {},
+      "bookmarks.seed_key"
+    ),
+    safeCreateIndex(
+      getReviewsCollection(),
+      { tuitionId: 1, createdAt: -1, _id: -1 },
+      {},
+      "reviews.tuition_recent"
+    ),
+    safeCreateIndex(
+      getReviewsCollection(),
+      { tuitionId: 1, studentEmail: 1 },
+      {
+        name: "uniq_review_per_student_tuition",
+        unique: true,
+        partialFilterExpression: { studentEmail: { $type: "string" } },
+      },
+      "reviews.unique_student_tuition"
+    ),
+    safeCreateIndex(getReviewsCollection(), { seedKey: 1 }, {}, "reviews.seed_key"),
   ])
 }
 
