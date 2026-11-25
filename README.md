@@ -8,11 +8,10 @@ The companion Next.js client lives in the `mentorlagbe-client` repository.
 
 ## Live Site & Repositories
 
-Replace these placeholders with the real deployment and repository URLs before sharing publicly:
-
-- **Live site:** `https://<your-deployment-url>`
-- **Client repository:** `https://github.com/<your-org>/mentorlagbe-client`
-- **Server repository:** `https://github.com/<your-org>/mentorlagbe-server`
+- **Live API:** https://mentorlagbe-server-blush.vercel.app
+- **Client site:** https://mentorlagbe-client-g8ov.vercel.app
+- **Client repository:** https://github.com/Asrafuz01/mentorlagbe-client
+- **Server repository:** https://github.com/Asrafuz01/mentorlagbe-server
 
 ## Admin Credentials (Demo / Local Only)
 
