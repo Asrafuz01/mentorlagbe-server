@@ -8,6 +8,7 @@ import {
 } from "../config/db.js"
 import { verifyAdmin, verifyToken } from "../middlewares/auth.middleware.js"
 import { findById, hasValidId } from "../utils/ids.js"
+import { serializePayment } from "../utils/payment.js"
 import { toPublicUser } from "../utils/user.js"
 
 const router = Router()
@@ -38,18 +39,6 @@ function serializeTuition(tuition) {
     _id: String(tuition._id),
     createdAt: dateString(tuition.createdAt),
     updatedAt: dateString(tuition.updatedAt),
-  }
-}
-
-function serializePayment(payment) {
-  return {
-    ...payment,
-    _id: String(payment._id),
-    plan: payment.plan || "free",
-    currency: text(payment.currency, "USD").toUpperCase(),
-    status: payment.status || "pending",
-    createdAt: dateString(payment.createdAt),
-    updatedAt: dateString(payment.updatedAt),
   }
 }
 

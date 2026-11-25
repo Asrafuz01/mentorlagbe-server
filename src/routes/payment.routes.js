@@ -9,6 +9,7 @@ import {
 import { env } from "../config/env.js"
 import { verifyToken } from "../middlewares/auth.middleware.js"
 import { paymentVerifyRateLimit } from "../middlewares/rate-limit.js"
+import { isPaidPaymentStatus, serializePayment } from "../utils/payment.js"
 import { normalizeRole } from "../utils/user.js"
 
 const router = Router()
@@ -232,6 +233,7 @@ async function fulfillPaidSession(session, fallback = {}) {
         userEmail: identity.userEmail,
         userRole: identity.userRole,
         stripePaymentIntentId: identity.stripePaymentIntentId,
+        paidAt: now,
         updatedAt: now,
       },
       $setOnInsert: {
@@ -356,7 +358,7 @@ router.get("/verify", verifyToken, paymentVerifyRateLimit, async (req, res, next
     if (!stripe) {
       const local = await payments.findOne({ stripeSessionId: sessionId })
       if (!local || !isPaymentOwner(local, req.user)) return paymentNotFound(res)
-      if (text(local.status) !== "completed") {
+      if (!isPaidPaymentStatus(local.status)) {
         return res.status(409).json({
           message: "Payment has not been completed yet.",
           status: local.status,
@@ -377,7 +379,7 @@ router.get("/verify", verifyToken, paymentVerifyRateLimit, async (req, res, next
           currency: local.currency,
         }
       )
-      return res.status(200).json({ verified: true, payment })
+      return res.status(200).json({ verified: true, payment: serializePayment(payment) })
     }
 
     const session = await stripe.checkout.sessions
@@ -400,7 +402,7 @@ router.get("/verify", verifyToken, paymentVerifyRateLimit, async (req, res, next
     }
 
     const payment = await fulfillPaidSession(session)
-    return res.status(200).json({ verified: true, payment })
+    return res.status(200).json({ verified: true, payment: serializePayment(payment) })
   } catch (error) {
     return next(error)
   }

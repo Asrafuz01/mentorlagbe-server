@@ -45,8 +45,8 @@ Use placeholder credentials only. Keep `JWT_SECRET`, `BETTER_AUTH_SECRET`, `STRI
 - **Application APIs:** student submission with duplicate prevention, role-scoped listing, student cancellation, and tutor accept/reject.
 - **Admin APIs:** user role management, all-status tuition moderation, transactions, and summary stats.
 - **Stripe checkout, verification, and webhook:** `$10 student-pro` / `$15 tutor-pro` plans, configured price IDs with dynamic `price_data` fallback, raw-body signature verification, and idempotent payment/plan activation.
-- **Connected demo seed script:** users, tuitions, applications, and payments with stable keys so repeat runs do not duplicate data.
-- **MongoDB singleton connection** with collection getters for `users`, `tuitions`, `applications`, and `payments`.
+- **Connected demo seed script:** users, tuitions, applications, payments, bookmarks, and reviews with stable keys so repeat runs do not duplicate data.
+- **MongoDB singleton connection** with collection getters for the six domain collections (`users`, `tuitions`, `applications`, `payments`, `bookmarks`, `reviews`) plus BetterAuth's `user` and `session` stores.
 
 ## Key npm Packages
 
@@ -118,7 +118,7 @@ npm test       # Node test runner
 | Admin | `/api/admin` | Requires `verifyAdmin` |
 | Payments | `/api/payments` | Checkout, verify, webhook |
 
-All `/api/*` responses are JSON. Protected routes expect a JWT from `POST /api/auth/jwt`, which requires a valid BetterAuth session cookie unless the explicit local-dev fallback is enabled. Payment verification also requires the JWT of the customer who owns the checkout session.
+All `/api/*` responses are JSON. Protected routes expect a JWT from `POST /api/auth/jwt`, which requires a valid BetterAuth session cookie unless the explicit local-dev fallback is enabled. Payment verification also requires the JWT of the customer who owns the checkout session. User and payment responses include logical-design aliases (`planTier`, `planName`, `transactionId`, `paymentStatus`, `paidAt`) alongside the canonical stored fields (`plan`, `status`, `stripePaymentIntentId`, timestamps) so older clients and seed data keep working.
 
 ## Demo Seed Data
 

@@ -38,6 +38,8 @@ export function toPublicUser(user) {
     email: user.email || "",
     role: normalizeRole(user.role),
     plan: normalizePlan(user.plan),
+    // Logical-design alias: role-specific Pro plans still map to `pro`.
+    planTier: isProPlan(user.plan) ? "pro" : "free",
     image: user.image || null,
     phone: user.phone || "",
     bio: user.bio || "",
